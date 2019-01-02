@@ -10,9 +10,11 @@ from imutils.face_utils import rect_to_bb
 from skimage.transform import resize
 from scipy.spatial import distance
 from keras.models import load_model
+from mtcnn.mtcnn import MTCNN
 
 valid = "report/valid/"
 compare = "report/test/"
+face_detect = "mtcnn"
 
 min_faceSzie = (90, 90)
 cascade_path = 'haarcascade_frontalface_alt2.xml'
@@ -28,7 +30,15 @@ dataset_file = "officedoor.h5"
 #pretrained Keras model (trained by MS-Celeb-1M dataset)
 model_path = 'model/facenet_keras.h5'
 model = load_model(model_path)
-detector = dlib.get_frontal_face_detector()
+cascade_path = 'haarcascade_frontalface_default.xml'
+
+if(face_detect=="mtcnn"):
+    detector = MTCNN()
+elif(face_detect=="dlib"):
+    detector = dlib.get_frontal_face_detector()
+else:
+    detector = cv2.CascadeClassifier(cascade_path)
+    
 #-----------------------------------------------------------------------------
 
 def prewhiten(x):
@@ -56,17 +66,29 @@ def l2_normalize(x, axis=-1, epsilon=1e-10):
     return output
 
 def align_image(img, margin):
-    #Cascade
-    #cascade = cv2.CascadeClassifier(cascade_path)
-    #faces = cascade.detectMultiScale(img, scaleFactor=1.15, minNeighbors=5)
-
-    #Dlib
     faces = []
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    rects = detector(gray, 2)
-    for rect in rects:
-        (x, y, w, h) = rect_to_bb(rect)
-        faces.append((int(x),int(y),int(w),int(h)))
+    if(face_detect=="mtcnn"):
+        allfaces = detector.detect_faces(img)
+        for face in allfaces:
+            print("face", face["box"])
+            x = face["box"][0]
+            y = face["box"][1]
+            w = face["box"][2]
+            h = face["box"][3]
+            faces.append((int(x),int(y),int(w),int(h)))
+
+    elif(face_detect=="dlib"):
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        rects = detector(gray, 2)
+        for rect in rects:
+            (x, y, w, h) = rect_to_bb(rect)
+            faces.append((int(x),int(y),int(w),int(h)))
+
+    else:
+        allfaces = detector.detectMultiScale(img, scaleFactor=1.10, minNeighbors=5)
+        for face in allfaces:
+            (x, y, w, h) = face
+            faces.append((int(x),int(y),int(w),int(h)))
 
     if(len(faces)>0):
         imgFaces = []
